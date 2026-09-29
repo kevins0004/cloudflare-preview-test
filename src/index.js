@@ -1,4 +1,4 @@
-const VERSION = "v1 - initial";
+const VERSION = "v2 - initial";
 
 export default {
   async fetch(request) {
