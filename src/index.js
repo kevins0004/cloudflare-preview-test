@@ -1,4 +1,4 @@
-const VERSION = "v2 - initial";
+const VERSION = "v5-B - parallel";
 
 export default {
   async fetch(request) {
