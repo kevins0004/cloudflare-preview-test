@@ -44,4 +44,6 @@ Notes:
 
 ## Known issue: some deleted previews stay live
 
-For `pr-3` through `pr-8`, Cloudflare replied "deleted successfully", and a second delete returns "Preview not found", but the old preview URLs keep serving their code. `pr-1` and `pr-2` were removed correctly. This is on Cloudflare's side (Workers Previews is in open beta) and cannot be fixed from the workflow. The delete check flags it on each PR.
+For `pr-3` through `pr-9`, Cloudflare replied "deleted successfully", and a second delete returns "Preview not found", but the old preview URLs keep serving their code. `pr-1` and `pr-2` were removed correctly. This is on Cloudflare's side (Workers Previews is in open beta) and cannot be fixed from the workflow. The delete check flags it on each PR.
+
+Reported to Cloudflare on 2026-09-29: https://github.com/cloudflare/workers-sdk/issues/15945
