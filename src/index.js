@@ -1,4 +1,4 @@
-const VERSION = "v3 - first push";
+const VERSION = "v4 - second push";
 
 export default {
   async fetch(request) {
