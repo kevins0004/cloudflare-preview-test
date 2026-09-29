@@ -1,4 +1,4 @@
-const VERSION = "v8 - green";
+const VERSION = "v9 - purple";
 
 export default {
   async fetch(request) {
@@ -9,7 +9,7 @@ export default {
     }
 
     return new Response(
-      `<style>body { background: #1f9d55; color: white; font-family: sans-serif; }</style>
+      `<style>body { background: #7048e8; color: white; font-family: sans-serif; }</style>
 <h1>Cloudflare Preview Test</h1>
 <p>Version: <strong>${VERSION}</strong></p>
 <p>Served from: ${url.hostname}</p>`,
