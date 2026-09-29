@@ -1,0 +1,78 @@
+name: PR Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: preview-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  PREVIEW_NAME: pr-${{ github.event.pull_request.number }}
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  deploy-preview:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Create or update preview
+        id: preview
+        run: |
+          url=$(npx wrangler preview --name "$PREVIEW_NAME" --message "${HEAD_SHA::7}" --json | jq -er '.preview.urls[0]')
+          echo "url=${url%/}" >> "$GITHUB_OUTPUT"
+
+      - name: Check preview is serving
+        run: |
+          curl --fail --show-error --silent --retry 5 --retry-delay 3 --retry-all-errors \
+            "${{ steps.preview.outputs.url }}/health"
+
+      - name: Comment preview link on PR
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: |
+          body="🔍 **Preview:** $PREVIEW_URL
+
+          Commit \`${HEAD_SHA::7}\` · updates on every push · deleted when this PR is merged or closed."
+          gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body "$body"
+
+  delete-preview:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Delete preview
+        run: npx wrangler preview delete --name "$PREVIEW_NAME" --skip-confirmation
+
+      - name: Update PR comment
+        run: |
+          gh pr comment "$PR_NUMBER" --edit-last --create-if-none \
+            --body "🧹 Preview \`$PREVIEW_NAME\` was deleted when this PR was closed."
