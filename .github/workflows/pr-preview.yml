@@ -3,6 +3,8 @@ name: PR Preview
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
+    paths-ignore:
+      - "**.md"
 
 permissions:
   contents: read
@@ -37,7 +39,9 @@ jobs:
       - name: Create or update preview
         id: preview
         run: |
-          url=$(npx wrangler preview --name "$PREVIEW_NAME" --message "${HEAD_SHA::7}" --json | jq -er '.preview.urls[0]')
+          out=$(npx wrangler preview --name "$PREVIEW_NAME" --message "${HEAD_SHA::7}" --json) || { echo "$out"; exit 1; }
+          echo "$out"
+          url=$(jq -er '.preview.urls[0]' <<<"$out")
           echo "url=${url%/}" >> "$GITHUB_OUTPUT"
 
       - name: Check preview is serving
@@ -72,7 +76,30 @@ jobs:
       - name: Delete preview
         run: npx wrangler preview delete --name "$PREVIEW_NAME" --skip-confirmation
 
-      - name: Update PR comment
+      # Cloudflare sometimes reports a delete as successful but keeps serving the old preview.
+      - name: Check preview is gone
+        id: gone
         run: |
-          gh pr comment "$PR_NUMBER" --edit-last --create-if-none \
-            --body "🧹 Preview \`$PREVIEW_NAME\` was deleted when this PR was closed."
+          url="https://${PREVIEW_NAME}-preview-test.kevins0004.workers.dev/health"
+          for _ in $(seq 1 12); do
+            code=$(curl --silent --output /dev/null --write-out '%{http_code}' "$url?n=$RANDOM" || true)
+            if [ "$code" = "404" ]; then
+              echo "still_live=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::warning::Cloudflare reported $PREVIEW_NAME deleted, but it still returned $code after 2 minutes."
+          echo "still_live=true" >> "$GITHUB_OUTPUT"
+
+      - name: Update PR comment
+        env:
+          STILL_LIVE: ${{ steps.gone.outputs.still_live }}
+        run: |
+          body="🧹 Preview \`$PREVIEW_NAME\` was deleted when this PR was closed."
+          if [ "$STILL_LIVE" = "true" ]; then
+            body="$body
+
+          ⚠️ Cloudflare reported the delete as successful, but the link was still live 2 minutes later."
+          fi
+          gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body "$body"
